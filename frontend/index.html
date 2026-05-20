@@ -26,19 +26,9 @@
         <div id="name-warning" class="text-danger small mt-1" style="display: none;">Bitte gib einen Namen ein, um fortzufahren!</div>
     </div>
 
-    <hr>
-
-    <!-- Spielerauswahl -->
-    <h5 class="mb-3 fw-bold">Wähle ein Minispiel:</h5>
-    <div class="d-grid gap-3">
-        <button onclick="startGame('game1')" class="btn btn-outline-primary btn-lg text-start p-3">
-            <strong>🎮 Spiel 1: Risiko-Schätzer</strong>
-            <br><small class="text-muted">Teste deine Intuition bei kontinuierlichen Gewinnspannen.</small>
-        </button>
-        <button onclick="startGame('game2')" class="btn btn-outline-success btn-lg text-start p-3">
-            <strong>📊 Spiel 2: Die Bimodale Falle</strong>
-            <br><small class="text-muted">Erkenne versteckte Muster in scheinbar zufälligen Zahlen.</small>
-        </button>
+    <div class="d-grid gap-2">
+        <button id="confirm-button" class="btn btn-primary btn-lg" onclick="confirmName()">Name bestätigen</button>
+        <div id="result-message" class="text-success small" style="display:none;">Der Name wurde erfolgreich gespeichert.</div>
     </div>
 </div>
 
@@ -51,20 +41,37 @@ function submitNameToServer(name) {
     });
 }
 
-function startGame(game) {
+function confirmName() {
     const nameEl = document.getElementById('username');
     const warning = document.getElementById('name-warning');
+    const result = document.getElementById('result-message');
+    const button = document.getElementById('confirm-button');
     const name = nameEl.value.trim();
-    if (!name) { warning.style.display = 'block'; return; }
+    if (!name) {
+        warning.style.display = 'block';
+        result.style.display = 'none';
+        return;
+    }
     warning.style.display = 'none';
+    button.disabled = true;
     submitNameToServer(name).then(resp => {
+        button.disabled = false;
         if (resp.ok) {
-            alert('Name submitted. Starting ' + game + '.');
+            result.textContent = 'Der Name wurde erfolgreich gespeichert.';
+            result.className = 'text-success small';
+            result.style.display = 'block';
         } else {
-            resp.json().then(j => alert('Server error: ' + (j.error || resp.statusText)));
+            resp.json().then(j => {
+                result.textContent = 'Serverfehler: ' + (j.error || resp.statusText);
+                result.className = 'text-danger small';
+                result.style.display = 'block';
+            });
         }
     }).catch(err => {
-        alert('Request failed: ' + err.message + '\nMake sure the server is running.');
+        button.disabled = false;
+        result.textContent = 'Anfrage fehlgeschlagen: ' + err.message;
+        result.className = 'text-danger small';
+        result.style.display = 'block';
     });
 }
 </script>

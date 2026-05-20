@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 const dataDir = path.join(__dirname, '..', 'data');
-const csvPath = path.join(dataDir, 'testData.csv');
+const csvPath = path.join(dataDir, 'names.csv');
 
 app.post('/submit-name', (req, res) => {
   try {
@@ -32,7 +32,7 @@ app.post('/submit-name', (req, res) => {
 // Serve frontend static files
 app.use('/', express.static(path.join(__dirname, '..', 'frontend')));
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5173;
 // Listen on all network interfaces so the server is reachable from other machines
-const host = process.env.HOST || '0.0.0.0';
+const host = process.env.HOST || '193.196.36.144';
 app.listen(port, host, () => console.log(`Server listening on http://${host}:${port}`));
