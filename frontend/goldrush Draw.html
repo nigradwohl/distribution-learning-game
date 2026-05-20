@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoldRush – Learning the Mine</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #111827; color: #e5e7eb;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 16px;
+}
+h1 { color: #fbbf24; font-size: 1.9em; letter-spacing: 2px; margin-bottom: 2px; }
+#subtitle { color: #9ca3af; font-size: 0.85em; margin-bottom: 14px; }
+
+/* ── Status Bar ─────────── */
+#status-bar {
+    display: flex; background: #1f2937;
+    border: 1px solid #374151; border-radius: 8px;
+    margin-bottom: 10px; width: 720px; overflow: hidden;
+}
+.stat { flex:1; display:flex; flex-direction:column; align-items:center; padding:8px 4px; border-right:1px solid #374151; }
+.stat:last-child { border-right:none; }
+.stat-label { font-size:.65em; color:#6b7280; text-transform:uppercase; letter-spacing:1px; }
+.stat-value { font-size:1.15em; font-weight:700; color:#fbbf24; margin-top:2px; }
+
+/* ── Round Dots ─────────── */
+#round-dots { display:flex; gap:10px; margin-bottom:10px; min-height:20px; align-items:center; }
+.rd { width:18px; height:18px; border-radius:50%; background:#374151; border:2px solid #4b5563; transition:all .3s; }
+.rd.active { background:transparent; border-color:#fbbf24; box-shadow:0 0 8px #fbbf24; }
+.rd.win    { background:#16a34a; border-color:#22c55e; }
+.rd.lose   { background:#dc2626; border-color:#ef4444; }
+
+/* ── Canvas ─────────────── */
+#game-wrap { position:relative; width:720px; }
+#mine-canvas { display:block; border-radius:8px; border:2px solid #4b5563; }
+#phase-overlay {
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.78); border-radius:8px; z-index:20;
+}
+#overlay-box {
+    text-align:center; padding:28px 38px;
+    background:#1f2937; border:2px solid #fbbf24; border-radius:10px; max-width:500px;
+}
+#overlay-box h2 { color:#fbbf24; font-size:1.4em; margin-bottom:8px; }
+#overlay-box p  { color:#d1d5db; font-size:.9em; line-height:1.6; margin-bottom:18px; white-space:pre-line; }
+
+/* ── Sub-bars ───────────── */
+.sub-bar { width:720px; background:#1f2937; border:1px solid #374151; border-radius:8px; margin-top:10px; padding:12px 20px; display:none; }
+
+#mining-bar { align-items:center; justify-content:space-between; }
+.mb-item { display:flex; flex-direction:column; align-items:center; }
+.mb-label { font-size:.72em; color:#6b7280; text-transform:uppercase; letter-spacing:1px; }
+.mb-val   { font-size:1.2em; font-weight:700; color:#fbbf24; margin-top:2px; }
+
+/* ── Histogram Build Bar ── */
+#hist-bar h3   { color:#fbbf24; font-size:1em; margin-bottom:4px; }
+#hist-bar .hb-hint { color:#9ca3af; font-size:.82em; margin-bottom:12px; line-height:1.45; }
+.hb-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+#bucket-track { display:flex; flex-wrap:wrap; gap:3px; background:#111827; border:1px solid #374151; border-radius:6px; padding:8px 10px; margin-bottom:12px; }
+.bp { width:13px; height:13px; border-radius:3px; background:#fbbf24; border:1px solid #92400e; transition:background .1s; }
+.bp.empty { background:#374151; border-color:#4b5563; }
+#budget-label { font-size:.88em; color:#9ca3af; margin-bottom:4px; }
+#budget-label b { color:#fbbf24; }
+.hb-actions { display:flex; gap:10px; justify-content:center; margin-top:12px; }
+
+/* ── Result Bar ────────── */
+#result-bar {
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+#result-score-text { flex:1; font-size:.92em; line-height:1.55; }
+#result-score-text .score-big { font-size:1.4em; font-weight:700; color:#fbbf24; display:block; margin-bottom:4px; }
+#result-score-text .score-detail { color:#9ca3af; font-size:.85em; }
+#result-score-text.good .score-big { color:#4ade80; }
+#result-score-text.bad  .score-big { color:#f87171; }
+
+/* ── Buttons ────────────── */
+button { background:#fbbf24; color:#111827; border:none; padding:9px 24px; font-size:.92em; font-weight:700; border-radius:6px; cursor:pointer; transition:background .15s, transform .1s; }
+button:hover   { background:#fde68a; transform:scale(1.04); }
+button:active  { transform:scale(.98); }
+button:disabled { background:#4b5563; color:#9ca3af; cursor:not-allowed; transform:none; }
+button.ghost { background:transparent; color:#9ca3af; border:1px solid #4b5563; }
+button.ghost:hover { background:#374151; color:#e5e7eb; }
+button.next { font-size:1em; padding:11px 30px; }
+
+/* ── Level Complete ─────── */
+#lc-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; }
+#lc-box { background:#1f2937; border:2px solid #fbbf24; border-radius:12px; padding:36px 44px; text-align:center; min-width:360px; }
+#lc-box h2  { color:#fbbf24; font-size:1.7em; margin-bottom:10px; }
+#lc-box p   { color:#d1d5db; margin-bottom:8px; line-height:1.5; }
+#lc-box .lc-gold   { font-size:1.25em; color:#fbbf24; font-weight:700; margin:14px 0 22px; }
+#lc-box .lc-rounds { display:flex; gap:10px; justify-content:center; margin:12px 0 18px; }
+#lc-box .lc-rounds .rd { width:22px; height:22px; }
+
+/* ── Leaderboard ────────── */
+#leaderboard { width:720px; background:#1f2937; border:1px solid #374151; border-radius:8px; padding:14px 20px; margin-top:12px; }
+#leaderboard h3 { color:#fbbf24; margin-bottom:10px; font-size:.95em; }
+#lb-list { list-style:none; }
+#lb-list li { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #374151; font-size:.82em; color:#9ca3af; }
+#lb-list li:last-child { border-bottom:none; }
+.lb-gold { color:#fbbf24; font-weight:600; }
+</style>
+</head>
+<body>
+
+<h1>⛏ GoldRush</h1>
+<p id="subtitle">Schürfe · Lerne die Verteilung · Baue dein Histogramm</p>
+
+<div id="status-bar">
+    <div class="stat"><span class="stat-label">Level</span><span class="stat-value" id="s-level">1/6</span></div>
+    <div class="stat" style="flex:2"><span class="stat-label">Mine</span><span class="stat-value" id="s-name" style="font-size:.88em">–</span></div>
+    <div class="stat"><span class="stat-label">Gesamtgold</span><span class="stat-value" id="s-gold">🪙 0</span></div>
+    <div class="stat"><span class="stat-label">Phase</span><span class="stat-value" id="s-phase" style="font-size:.82em">–</span></div>
+    <div class="stat"><span class="stat-label">Runde</span><span class="stat-value" id="s-round">–</span></div>
+</div>
+
+<div id="round-dots"></div>
+
+<div id="game-wrap">
+    <canvas id="mine-canvas" width="720" height="420"></canvas>
+    <div id="phase-overlay">
+        <div id="overlay-box">
+            <h2 id="ov-title">Willkommen!</h2>
+            <p id="ov-text"></p>
+            <button id="ov-btn">Los geht's!</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mining info -->
+<div id="mining-bar" class="sub-bar" style="display:none; flex-direction:row">
+    <div class="mb-item"><span class="mb-label">Gefangen</span><span class="mb-val" id="mb-caught">0</span></div>
+    <div class="mb-item"><span class="mb-label">Gefallen</span><span class="mb-val" id="mb-fallen">0 / 45</span></div>
+    <div class="mb-item"><span class="mb-label">Runden-Gold</span><span class="mb-val" id="mb-gold">🪙 0</span></div>
+    <div style="font-size:.8em; color:#9ca3af; max-width:200px; text-align:center; line-height:1.4">
+        Maus bewegen → Korb steuern<br>Coins auffangen!
+    </div>
+</div>
+
+<!-- Histogram builder -->
+<div id="hist-bar" class="sub-bar">
+    <div class="hb-top">
+        <h3>Bau-Phase – Verteile deine Eimer auf das Histogramm</h3>
+        <span id="budget-label">Übrig: <b id="budget-left">40</b> / 40</span>
+    </div>
+    <p class="hb-hint">
+        Klick in eine Spalte → Eimer hinzufügen &nbsp;|&nbsp; Klick auf gefüllten Balken → Eimer entfernen &nbsp;|&nbsp; Rechtsklick → entfernen<br>
+        Alle 40 Eimer müssen platziert werden, bevor du bestätigen kannst.
+    </p>
+    <div id="bucket-track"></div>
+    <div class="hb-actions">
+        <button class="ghost" id="hist-reset-btn">↺ Zurücksetzen</button>
+        <button id="hist-confirm-btn" disabled>Auflösung zeigen ✓</button>
+    </div>
+</div>
+
+<!-- Result bar (shown during result phase, until player clicks Weiter) -->
+<div id="result-bar" class="sub-bar" style="display:none; flex-direction:row">
+    <div id="result-score-text">
+        <span class="score-big" id="rs-headline">–</span>
+        <span class="score-detail" id="rs-detail">–</span>
+    </div>
+    <button class="next" id="continue-btn">Weiter →</button>
+</div>
+
+<!-- Level Complete -->
+<div id="lc-overlay">
+    <div id="lc-box">
+        <h2 id="lc-title">Level geschafft!</h2>
+        <p id="lc-msg"></p>
+        <div class="lc-rounds" id="lc-rounds"></div>
+        <p class="lc-gold" id="lc-gold"></p>
+        <button id="lc-next-btn">Nächste Mine ➜</button>
+    </div>
+</div>
+
+<div id="leaderboard">
+    <h3>🏆 Bestenliste (lokal)</h3>
+    <ul id="lb-list"><li><span style="color:#6b7280">Noch keine Einträge</span></li></ul>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+
+const BINS       = 20;
+const BUDGET     = 40;
+const BUCKET_PX  = 7;                    // px per bucket unit in bar
+const MAX_BAR_H  = BUDGET * BUCKET_PX;  // 280 px – scale reference
+
+// Canvas
+const CW = 720, CH = 420;
+const ML = 50, MR = 670, MW = 620;
+const MT = 30,  MB = 355;               // mine shaft 30…355 = 325 px tall
+const BIN_W = MW / BINS;                // 31 px per bin
+
+const xToPx = x  => ML + x * MW;
+const pxToX = px => (px - ML) / MW;
+
+// Catcher
+const CATCH_HW   = 38;
+const CATCH_TOP  = MB - 22;
+const CATCH_BASE = MB - 4;
+
+// ═══════════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════════
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function randn() {
+    let u = 0, v = 0;
+    while (!u) u = Math.random();
+    while (!v) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+const sampleNormal  = (m, s)          => clamp(m + randn() * s, 0, 1);
+const sampleUniform = ()               => Math.random();
+const samplePower   = e                => Math.pow(Math.random(), e);
+const sampleBimodal = (m1,m2,s1,s2,w) =>
+    Math.random() < w ? sampleNormal(m1,s1) : sampleNormal(m2,s2);
+
+// 1-D Wasserstein / Earth Mover's Distance  (both arrays already normalised, sum = 1)
+function emd(p, q) {
+    let cumP = 0, cumQ = 0, d = 0;
+    for (let i = 0; i < p.length; i++) { cumP += p[i]; cumQ += q[i]; d += Math.abs(cumP - cumQ); }
+    return d / p.length;   // ≈ 0 … 0.5
+}
+
+// Theoretical bin probabilities (8k samples, invisible to player)
+function theoreticalProbs() {
+    const N = 8000, counts = new Array(BINS).fill(0);
+    for (let i = 0; i < N; i++) {
+        counts[clamp(Math.floor(level().sample() * BINS), 0, BINS-1)]++;
+    }
+    return counts.map(c => c / N);
+}
+
+// ═══════════════════════════════════════════════
+// LEVELS
+// ═══════════════════════════════════════════════
+
+const LEVELS = [
+    { id:1, name:'Die Mittelmine',
+      intro:'Coins häufen sich irgendwo in der Mine.\nFange sie auf – dann zeige im Histogramm, wo sie am häufigsten landen.',
+      sample: () => sampleNormal(0.5, 0.09) },
+    { id:2, name:'Die Breite Mine',
+      intro:'Dieselbe Mitte, aber mit viel stärkerer Streuung.\nWie weit reicht die Verteilung?',
+      sample: () => sampleNormal(0.5, 0.19) },
+    { id:3, name:'Die Ostmine',
+      intro:'Die Coins bevorzugen eine Seite der Mine.\nWelche – und wie steil ist das Gefälle?',
+      sample: () => 1 - samplePower(3.5) },
+    { id:4, name:'Die Zwillingsmine',
+      intro:'Zwei getrennte Erzadern! Coins kommen aus zwei Bereichen.\nKannst du beide Gipfel zeigen?',
+      sample: () => sampleBimodal(0.22, 0.74, 0.07, 0.07, 0.5) },
+    { id:5, name:'Die Gleichmine',
+      intro:'Kein klares Muster – Coins fallen überall gleichmäßig.\nWie sieht ein flaches Histogramm aus?',
+      sample: () => sampleUniform() },
+    { id:6, name:'Die Ungleiche Zwillingsmine',
+      intro:'Zwei Erzadern – aber eine ist viel ergiebiger.\nWelche dominiert? Wie stark?',
+      sample: () => sampleBimodal(0.28, 0.72, 0.07, 0.06, 0.72) },
+];
+
+// ═══════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════
+
+const G = {
+    levelIdx: 0, totalGold: 0,
+    roundNum: 0, roundResults: [],
+    phase: 'intro',
+    // mining
+    roundGold: 0, nugCaught: 0, nugLanded: 0, nugSpawned: 0,
+    spawnTimer: 0, falling: [], sparks: [],
+    catcherX: 360, catcherTargetX: 360,
+    hoveredBin: -1,
+    // build
+    predicted: new Array(BINS).fill(0),
+    trueProbs: null,
+    // animation
+    raf: null, lastTs: 0,
+    // tuning
+    CATCH_GOLD:  10,
+    NUGGETS:     45,    // ← more coins
+    ROUNDS:       3,
+    FALL_SPEED:  0.52,  // ← faster fall
+    SPAWN_MS:   480,    // ← faster spawning
+};
+
+const level      = () => LEVELS[G.levelIdx];
+const budgetUsed = () => G.predicted.reduce((a,b) => a+b, 0);
+
+// ═══════════════════════════════════════════════
+// CANVAS / DRAW
+// ═══════════════════════════════════════════════
+
+const canvas = document.getElementById('mine-canvas');
+const ctx    = canvas.getContext('2d');
+
+function draw() {
+    // Background
+    const bg = ctx.createLinearGradient(0,0,0,CH);
+    bg.addColorStop(0,'#0d1117'); bg.addColorStop(1,'#1a0f00');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,CW,CH);
+
+    // Rock walls
+    ctx.fillStyle='#2d1f0e';
+    ctx.fillRect(0,0,ML,CH); ctx.fillRect(MR,0,CW-MR,CH);
+    ctx.strokeStyle='#3d2b14'; ctx.lineWidth=1;
+    for (let y=15; y<CH; y+=22) {
+        ctx.beginPath(); ctx.moveTo(ML*.2,y);       ctx.lineTo(ML*.9,y+6);     ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(MR+ML*.1,y+3);  ctx.lineTo(MR+ML*.8,y-4);  ctx.stroke();
+    }
+
+    // Guide lines (one per bin)
+    ctx.strokeStyle='rgba(255,255,255,.025)'; ctx.lineWidth=1;
+    for (let i=1; i<BINS; i++) {
+        const x=ML+i*BIN_W;
+        ctx.beginPath(); ctx.moveTo(x,MT); ctx.lineTo(x,MB); ctx.stroke();
+    }
+
+    // Floor
+    ctx.fillStyle='#1c1000'; ctx.fillRect(ML,MB,MW,CH-MB);
+    ctx.strokeStyle='#8b5e1a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(ML,MB); ctx.lineTo(MR,MB); ctx.stroke();
+
+    // Axis ticks + labels
+    ctx.textAlign='center';
+    for (let i=0; i<=10; i++) {
+        const x=ML+i*MW/10;
+        ctx.fillStyle='#6b7280'; ctx.fillRect(x-.5,MB,1,5);
+        if (i%2===0) { ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif'; ctx.fillText(i*10+'%',x,MB+18); }
+    }
+    for (let i=1; i<20; i+=2) { // minor ticks
+        const x=ML+i*BIN_W;
+        ctx.fillStyle='#4b5563'; ctx.fillRect(x-.5,MB,1,3);
+    }
+
+    // Phase-specific histogram overlays
+    if (G.phase==='build')   drawBuildBars();
+    if (G.phase==='result')  drawResultBars();
+
+    // Sparks
+    for (const s of G.sparks) {
+        ctx.save(); ctx.globalAlpha=s.alpha;
+        ctx.fillStyle=s.col||'#fbbf24';
+        ctx.beginPath(); ctx.arc(s.x,s.y,3,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    // Falling coins
+    for (const n of G.falling) {
+        if (n.state==='caught') {
+            ctx.save(); ctx.globalAlpha=n.flash/12;
+            drawCoin(xToPx(n.x), CATCH_TOP+10);
+            ctx.restore();
+        } else {
+            drawCoin(xToPx(n.x), n.y);
+        }
+    }
+
+    // Catcher
+    if (G.phase==='mining'||G.phase==='transition') drawCatcher();
+
+    // Phase label strip
+    const label={ mining:'⛏  Schürf-Phase – Fange die Coins!', build:'📊  Bau-Phase – Verteile deine Eimer', result:'✅  Ergebnis – Deine Vorhersage vs. wahre Verteilung' }[G.phase];
+    if (label) {
+        ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(ML,MT-2,MW,20);
+        ctx.fillStyle='#fbbf24'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(label, CW/2, MT+12);
+    }
+
+    // Mining counters (top-right of shaft)
+    if (G.phase==='mining') {
+        ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(MR-134,MT+22,130,42);
+        ctx.fillStyle='#fbbf24'; ctx.font='bold 13px sans-serif'; ctx.textAlign='right';
+        ctx.fillText(`⛏ ${G.nugCaught} gefangen`, MR-6, MT+38);
+        ctx.fillStyle='#9ca3af'; ctx.font='11px sans-serif';
+        ctx.fillText(`${G.nugLanded} / ${G.NUGGETS} Coins`, MR-6, MT+54);
+    }
+}
+
+// ── Player histogram (build phase) ─────────────
+function drawBuildBars() {
+    for (let i=0; i<BINS; i++) {
+        const bx=ML+i*BIN_W, cnt=G.predicted[i], hov=G.hoveredBin===i;
+        if (hov) {
+            ctx.fillStyle='rgba(251,191,36,.08)'; ctx.fillRect(bx+1,MT+22,BIN_W-2,MB-MT-22);
+            ctx.strokeStyle='rgba(251,191,36,.5)'; ctx.lineWidth=1;
+            ctx.strokeRect(bx+1,MT+22,BIN_W-2,MB-MT-22);
+        }
+        if (!cnt) continue;
+        // stacked bucket blocks
+        for (let k=0; k<cnt; k++) {
+            const by=MB-(k+1)*BUCKET_PX;
+            ctx.fillStyle = k===cnt-1 ? '#fde68a' : `rgba(251,191,36,${.6+.35*(k/(cnt||1))})`;
+            ctx.fillRect(bx+3, by+1, BIN_W-6, BUCKET_PX-2);
+            if (k<cnt-1) { ctx.strokeStyle='rgba(0,0,0,.22)'; ctx.lineWidth=.5; ctx.strokeRect(bx+3,by+1,BIN_W-6,BUCKET_PX-2); }
+        }
+        ctx.fillStyle='#fffbeb'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(cnt, bx+BIN_W/2, MB-cnt*BUCKET_PX-5);
+    }
+}
+
+// ── Comparison view (result phase) ─────────────
+// Uses auto-scaled bars so the tallest bar of either histogram fills MAX_BAR_H.
+function drawResultBars() {
+    if (!G.trueProbs) return;
+    const predNorm = G.predicted.map(v => v/BUDGET);
+
+    // Compute shared scale: tallest bar of either histogram → MAX_BAR_H
+    const maxVal = Math.max(...predNorm, ...G.trueProbs, 1e-9);
+    const scale  = MAX_BAR_H / maxVal;
+
+    for (let i=0; i<BINS; i++) {
+        const bx = ML + i*BIN_W;
+        const ph = predNorm[i]  * scale;
+        const th = G.trueProbs[i] * scale;
+
+        // ── True distribution bar (blue) ──
+        if (th > 1) {
+            ctx.fillStyle='rgba(59,130,246,.35)';
+            ctx.fillRect(bx+2, MB-th, BIN_W-4, th);
+            ctx.strokeStyle='rgba(96,165,250,.9)'; ctx.lineWidth=2;
+            ctx.strokeRect(bx+2, MB-th, BIN_W-4, th);
+        }
+
+        // ── Player prediction bar (gold) ──
+        if (ph > 1) {
+            ctx.fillStyle='rgba(251,191,36,.55)';
+            ctx.fillRect(bx+5, MB-ph, BIN_W-10, ph);
+            ctx.strokeStyle='rgba(251,191,36,.95)'; ctx.lineWidth=1.5;
+            ctx.strokeRect(bx+5, MB-ph, BIN_W-10, ph);
+        }
+
+        // ── Error tint: overshoot (gold sticks above blue) → orange stripe ──
+        if (ph > th+2) {
+            ctx.fillStyle='rgba(251,146,60,.5)';
+            ctx.fillRect(bx+5, MB-ph, BIN_W-10, ph-th);
+        }
+        // ── Error tint: undershoot (blue sticks above gold) → red-teal stripe ──
+        if (th > ph+2) {
+            ctx.fillStyle='rgba(20,184,166,.35)';
+            ctx.fillRect(bx+2, MB-th, BIN_W-4, th-ph);
+        }
+    }
+
+    // ── Legend ──
+    const items = [
+        ['rgba(96,165,250,.9)', 'Wahre Verteilung', true],
+        ['rgba(251,191,36,.95)', 'Deine Vorhersage', true],
+        ['rgba(251,146,60,.7)', 'Zu viel gesetzt', false],
+        ['rgba(20,184,166,.7)',  'Zu wenig gesetzt', false],
+    ];
+    items.forEach(([col, lbl, stroke], idx) => {
+        const lx = ML + idx*162 + 4, ly = MT+25;
+        if (stroke) { ctx.strokeStyle=col; ctx.lineWidth=2; ctx.strokeRect(lx,ly,14,12); ctx.fillStyle=col.replace(/[\d.]+\)$/,'0.2)'); ctx.fillRect(lx,ly,14,12); }
+        else { ctx.fillStyle=col; ctx.fillRect(lx,ly,14,12); }
+        ctx.fillStyle='#d1d5db'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+        ctx.fillText(lbl, lx+17, ly+9);
+    });
+}
+
+// ── Coin ────────────────────────────────────────
+function drawCoin(cx, cy, alpha=1) {
+    const r=11;
+    ctx.save(); ctx.globalAlpha=alpha;
+    const glow=ctx.createRadialGradient(cx,cy,0,cx,cy,r*2.2);
+    glow.addColorStop(0,'rgba(251,191,36,.35)'); glow.addColorStop(1,'rgba(251,191,36,0)');
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(cx,cy,r*2.2,0,Math.PI*2); ctx.fill();
+    const grad=ctx.createRadialGradient(cx-3,cy-3,1,cx,cy,r);
+    grad.addColorStop(0,'#fffacd'); grad.addColorStop(.45,'#fbbf24'); grad.addColorStop(1,'#92400e');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.45)';
+    ctx.beginPath(); ctx.ellipse(cx-3.5,cy-3.5,3,2,-.6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+// ── Catcher ─────────────────────────────────────
+function drawCatcher() {
+    const cx=G.catcherX, hw=CATCH_HW, top=CATCH_TOP, base=CATCH_BASE, wH=base-top, wW=5;
+    if (G.nugCaught>0) {
+        ctx.save(); ctx.globalAlpha=Math.min(.4,G.nugCaught*.025);
+        const gl=ctx.createRadialGradient(cx,base-wH/2,0,cx,base-wH/2,hw);
+        gl.addColorStop(0,'rgba(251,191,36,1)'); gl.addColorStop(1,'rgba(251,191,36,0)');
+        ctx.fillStyle=gl; ctx.fillRect(cx-hw,top,hw*2,wH); ctx.restore();
+    }
+    const grad=ctx.createLinearGradient(0,top,0,base);
+    grad.addColorStop(0,'#b45309'); grad.addColorStop(1,'#78350f');
+    ctx.fillStyle=grad;
+    ctx.beginPath(); ctx.roundRect(cx-hw,top,wW,wH,[3,0,0,3]); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(cx+hw-wW,top,wW,wH,[0,3,3,0]); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(cx-hw,base-wW,hw*2,wW,[0,0,4,4]); ctx.fill();
+    ctx.fillStyle='#fbbf24'; ctx.fillRect(cx-hw,top,hw*2,3);
+    const coins=Math.min(G.nugCaught,8);
+    for (let i=0;i<coins;i++){
+        const cy2=base-wW-5-i*3, cx2=cx+(i%2===0?-7:7);
+        ctx.fillStyle='#fbbf24'; ctx.beginPath(); ctx.ellipse(cx2,cy2,5,2.5,0,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#92400e'; ctx.lineWidth=.8; ctx.stroke();
+    }
+}
+
+// ═══════════════════════════════════════════════
+// ANIMATION LOOP
+// ═══════════════════════════════════════════════
+
+function tick(ts) {
+    const dt = Math.min(ts-G.lastTs, 40);
+    G.lastTs = ts;
+
+    // Catcher follow
+    G.catcherX += (G.catcherTargetX-G.catcherX) * Math.min(1, dt*.022);
+
+    // Sparks
+    for (let i=G.sparks.length-1; i>=0; i--) {
+        const s=G.sparks[i];
+        s.x+=s.vx*dt; s.y+=s.vy*dt; s.vy+=.0003*dt; s.alpha-=.028*dt/16;
+        if (s.alpha<=0) G.sparks.splice(i,1);
+    }
+
+    // Spawn mining coins
+    if (G.phase==='mining') {
+        G.spawnTimer+=dt;
+        if (G.spawnTimer>=G.SPAWN_MS && G.nugSpawned<G.NUGGETS) {
+            G.spawnTimer-=G.SPAWN_MS;
+            G.falling.push({x:level().sample(), y:MT+8, state:'fall'});
+            G.nugSpawned++;
+        }
+    }
+
+    // Update coins
+    for (let i=G.falling.length-1; i>=0; i--) {
+        const n=G.falling[i];
+        if (n.state==='caught') { n.flash--; if(!n.flash) G.falling.splice(i,1); continue; }
+
+        n.y += G.FALL_SPEED * dt;
+
+        if (G.phase==='mining' && n.y>=CATCH_TOP) {
+            const nx=xToPx(n.x);
+            if (Math.abs(nx-G.catcherX)<=CATCH_HW) {
+                n.state='caught'; n.flash=14;
+                G.nugCaught++; G.roundGold+=G.CATCH_GOLD;
+                spawnSparks(nx, CATCH_TOP+10, '#fbbf24');
+                updateMiningBar();
+            } else { G.falling.splice(i,1); }
+            G.nugLanded++;
+            if (G.nugLanded>=G.NUGGETS) { G.phase='transition'; setTimeout(enterBuild,600); }
+        }
+    }
+
+    draw();
+    G.raf = requestAnimationFrame(tick);
+}
+
+function startLoop() { if(G.raf) return; G.lastTs=performance.now(); G.raf=requestAnimationFrame(tick); }
+
+function spawnSparks(cx,cy,col) {
+    for (let i=0;i<8;i++) {
+        const a=Math.random()*Math.PI*2, sp=.06+Math.random()*.1;
+        G.sparks.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-.12,alpha:1,col});
+    }
+}
+
+// ═══════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════
+
+canvas.addEventListener('mousemove', e=>{
+    const r=canvas.getBoundingClientRect(), px=e.clientX-r.left;
+    if (G.phase==='mining') G.catcherTargetX=clamp(px,ML+CATCH_HW,MR-CATCH_HW);
+    if (G.phase==='build')  { const x=pxToX(px); G.hoveredBin=(x>=0&&x<=1)?clamp(Math.floor(x*BINS),0,BINS-1):-1; }
+});
+canvas.addEventListener('mouseleave',()=>{ G.hoveredBin=-1; });
+canvas.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    const r=canvas.getBoundingClientRect(),px=e.touches[0].clientX-r.left;
+    if (G.phase==='mining') G.catcherTargetX=clamp(px,ML+CATCH_HW,MR-CATCH_HW);
+},{passive:false});
+
+// Build: click in empty area → add; click on filled bar → remove
+canvas.addEventListener('click',e=>{
+    if (G.phase!=='build') return;
+    const r=canvas.getBoundingClientRect();
+    const px=e.clientX-r.left, py=e.clientY-r.top;
+    const x=pxToX(px);
+    if (x<0||x>1) return;
+    const bin=clamp(Math.floor(x*BINS),0,BINS-1);
+    const barTop=MB-G.predicted[bin]*BUCKET_PX;
+    if (G.predicted[bin]>0 && py>=barTop && py<=MB) {
+        G.predicted[bin]--;
+    } else if (budgetUsed()<BUDGET) {
+        G.predicted[bin]++;
+    }
+    updateBuildUI();
+});
+canvas.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    if (G.phase!=='build') return;
+    const r=canvas.getBoundingClientRect(),px=e.clientX-r.left,x=pxToX(px);
+    if (x<0||x>1) return;
+    const bin=clamp(Math.floor(x*BINS),0,BINS-1);
+    if (G.predicted[bin]>0) { G.predicted[bin]--; updateBuildUI(); }
+});
+
+// ═══════════════════════════════════════════════
+// MINING PHASE
+// ═══════════════════════════════════════════════
+
+function startMining() {
+    document.getElementById('phase-overlay').style.display ='none';
+    document.getElementById('hist-bar').style.display      ='none';
+    document.getElementById('result-bar').style.display    ='none';
+    document.getElementById('mining-bar').style.display    ='flex';
+    canvas.style.cursor='none';
+
+    Object.assign(G,{phase:'mining',roundGold:0,nugCaught:0,nugLanded:0,nugSpawned:0,spawnTimer:0,falling:[],sparks:[]});
+    setStat('s-phase','Schürfen');
+    setStat('s-round',`${G.roundNum+1}/${G.ROUNDS}`);
+    updateMiningBar(); updateRoundDots(); startLoop();
+}
+
+function updateMiningBar() {
+    document.getElementById('mb-caught').textContent = G.nugCaught;
+    document.getElementById('mb-fallen').textContent = `${G.nugLanded}/${G.NUGGETS}`;
+    document.getElementById('mb-gold').textContent   = `🪙 ${G.roundGold}`;
+}
+
+// ═══════════════════════════════════════════════
+// BUILD PHASE
+// ═══════════════════════════════════════════════
+
+function enterBuild() {
+    G.phase      = 'build';
+    G.predicted  = new Array(BINS).fill(0);
+    G.hoveredBin = -1;
+    G.trueProbs  = theoreticalProbs();   // computed invisibly
+
+    document.getElementById('mining-bar').style.display    ='none';
+    document.getElementById('hist-bar').style.display      ='block';
+    document.getElementById('result-bar').style.display    ='none';
+    document.getElementById('hist-confirm-btn').disabled   = true;
+    canvas.style.cursor='crosshair';
+
+    setStat('s-phase','Bau');
+    updateBuildUI();
+}
+
+function updateBuildUI() {
+    const used=budgetUsed(), left=BUDGET-used;
+    document.getElementById('budget-left').textContent=left;
+    document.getElementById('hist-confirm-btn').disabled=(used!==BUDGET);
+    const track=document.getElementById('bucket-track');
+    track.innerHTML=Array.from({length:BUDGET},(_,i)=>`<div class="bp ${i>=used?'empty':''}"></div>`).join('');
+}
+
+document.getElementById('hist-reset-btn').addEventListener('click',()=>{
+    G.predicted=new Array(BINS).fill(0); updateBuildUI();
+});
+
+document.getElementById('hist-confirm-btn').addEventListener('click',()=>{
+    if (budgetUsed()!==BUDGET) return;
+    document.getElementById('hist-bar').style.display='none';
+    canvas.style.cursor='default';
+    showResult();
+});
+
+// ═══════════════════════════════════════════════
+// RESULT PHASE  (immediate reveal, no animation)
+// ═══════════════════════════════════════════════
+
+function showResult() {
+    G.phase = 'result';
+    setStat('s-phase','Ergebnis');
+
+    // Score
+    const predNorm = G.predicted.map(v => v/BUDGET);
+    const emdScore = emd(predNorm, G.trueProbs);
+    const mult     = Math.max(0, 2 - 4*emdScore);
+    const gain     = Math.round(G.roundGold * mult);
+    const emdPct   = Math.round(emdScore * 100);
+
+    G.totalGold += gain;
+    G.roundResults.push({roundGold:G.roundGold, gain, emd:emdScore});
+    G.roundNum++;
+
+    setStat('s-gold',`🪙 ${G.totalGold}`);
+    highlightGold(mult>=1);
+    updateRoundDots();
+
+    // Result bar
+    const st  = document.getElementById('result-score-text');
+    const hl  = document.getElementById('rs-headline');
+    const det = document.getElementById('rs-detail');
+
+    hl.textContent  = mult>=1.5 ? `✅ Ausgezeichnet! +${gain} 🪙` : mult>=0.7 ? `📊 Solide! +${gain} 🪙` : `❌ Weit daneben. +${gain} 🪙`;
+    det.textContent = `EMD = ${emdPct}  |  ${G.roundGold} Runden-Gold × ${mult.toFixed(2)} = ${gain} 🪙  |  🔵 = wahre Verteilung  🟡 = deine Vorhersage`;
+    st.className    = mult>=1 ? 'good' : 'bad';
+
+    document.getElementById('result-bar').style.display='flex';
+}
+
+document.getElementById('continue-btn').addEventListener('click',()=>{
+    document.getElementById('result-bar').style.display='none';
+    G.roundNum>=G.ROUNDS ? showLevelComplete() : startMining();
+});
+
+// ═══════════════════════════════════════════════
+// LEVEL COMPLETE
+// ═══════════════════════════════════════════════
+
+function showLevelComplete() {
+    G.phase='levelcomplete';
+    const lv=level();
+    const earned  = G.roundResults.reduce((a,r)=>a+r.gain,0);
+    const avgEMD  = (G.roundResults.reduce((a,r)=>a+r.emd,0)/G.roundResults.length*100).toFixed(1);
+
+    document.getElementById('lc-title').textContent = +avgEMD<10?'🎉 Meisterlich!': +avgEMD<20?'📊 Sehr gut!':'💡 Level geschafft!';
+    document.getElementById('lc-msg').textContent   = `${lv.name}  |  Ø EMD = ${avgEMD}  |  +${earned} 🪙 in diesem Level`;
+    document.getElementById('lc-rounds').innerHTML  = G.roundResults.map(r=>`<div class="rd ${r.emd<0.25?'win':'lose'}"></div>`).join('');
+    document.getElementById('lc-gold').textContent  = `Gesamtgold: 🪙 ${G.totalGold}`;
+
+    const isLast=G.levelIdx>=LEVELS.length-1;
+    document.getElementById('lc-next-btn').textContent=isLast?'🏆 Nochmal spielen':'Nächste Mine ➜';
+    document.getElementById('result-bar').style.display='none';
+    document.getElementById('lc-overlay').style.display='flex';
+    saveScore();
+}
+
+document.getElementById('lc-next-btn').addEventListener('click',()=>{
+    document.getElementById('lc-overlay').style.display='none';
+    if (G.levelIdx>=LEVELS.length-1) { location.reload(); return; }
+    G.levelIdx++; startLevel();
+});
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+
+function setStat(id,val) { document.getElementById(id).textContent=val; }
+
+function highlightGold(good) {
+    const el=document.getElementById('s-gold');
+    el.style.color=good?'#4ade80':'#f87171';
+    setTimeout(()=>{ el.style.color=''; },1800);
+}
+
+function updateRoundDots() {
+    const c=document.getElementById('round-dots'); c.innerHTML='';
+    for (let i=0;i<G.ROUNDS;i++) {
+        const d=document.createElement('div'); d.className='rd';
+        if (i<G.roundResults.length) d.classList.add(G.roundResults[i].emd<0.25?'win':'lose');
+        else if (i===G.roundResults.length) d.classList.add('active');
+        c.appendChild(d);
+    }
+}
+
+// ═══════════════════════════════════════════════
+// LEVEL START
+// ═══════════════════════════════════════════════
+
+function startLevel() {
+    const lv=level();
+    Object.assign(G,{phase:'intro',roundNum:0,roundResults:[]});
+    setStat('s-level',`${lv.id}/${LEVELS.length}`);
+    setStat('s-name', lv.name);
+    setStat('s-phase','Intro');
+    setStat('s-round',`1/${G.ROUNDS}`);
+    setStat('s-gold', `🪙 ${G.totalGold}`);
+    ['mining-bar','hist-bar','result-bar'].forEach(id=>document.getElementById(id).style.display='none');
+    canvas.style.cursor='default';
+    updateRoundDots();
+    document.getElementById('ov-title').textContent=`Level ${lv.id}: ${lv.name}`;
+    document.getElementById('ov-text').textContent =lv.intro;
+    document.getElementById('ov-btn').textContent  ='Schürfen beginnen!';
+    document.getElementById('ov-btn').onclick      =startMining;
+    document.getElementById('phase-overlay').style.display='flex';
+}
+
+// ═══════════════════════════════════════════════
+// LEADERBOARD
+// ═══════════════════════════════════════════════
+
+function saveScore() {
+    const lv=level();
+    const rows=JSON.parse(localStorage.getItem('gr5_scores')||'[]');
+    rows.push({date:new Date().toLocaleDateString('de-DE'),level:lv.id,name:lv.name,gold:G.totalGold});
+    rows.sort((a,b)=>b.gold-a.gold); rows.splice(10);
+    localStorage.setItem('gr5_scores',JSON.stringify(rows)); renderLeaderboard();
+}
+
+function renderLeaderboard() {
+    const rows=JSON.parse(localStorage.getItem('gr5_scores')||'[]');
+    document.getElementById('lb-list').innerHTML=rows.length?rows.map((s,i)=>
+        `<li><span>${i+1}. ${s.date} – Lv.${s.level} ${s.name}</span><span class="lb-gold">🪙 ${s.gold}</span></li>`
+    ).join(''):'<li><span style="color:#6b7280">Noch keine Einträge</span></li>';
+}
+
+// ═══════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════
+
+renderLeaderboard();
+startLevel();
+startLoop();
+</script>
+</body>
+</html>
