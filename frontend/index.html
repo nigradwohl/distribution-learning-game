@@ -42,6 +42,31 @@
     </div>
 </div>
 
-<script src="js/lobby.js"></script>
+<script>
+function submitNameToServer(name) {
+    return fetch('/submit-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+    });
+}
+
+function startGame(game) {
+    const nameEl = document.getElementById('username');
+    const warning = document.getElementById('name-warning');
+    const name = nameEl.value.trim();
+    if (!name) { warning.style.display = 'block'; return; }
+    warning.style.display = 'none';
+    submitNameToServer(name).then(resp => {
+        if (resp.ok) {
+            alert('Name submitted. Starting ' + game + '.');
+        } else {
+            resp.json().then(j => alert('Server error: ' + (j.error || resp.statusText)));
+        }
+    }).catch(err => {
+        alert('Request failed: ' + err.message + '\nMake sure the server is running.');
+    });
+}
+</script>
 </body>
 </html>

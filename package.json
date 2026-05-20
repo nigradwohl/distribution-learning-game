@@ -1,0 +1,14 @@
+{
+  "name": "distribution-learning-game",
+  "version": "1.0.0",
+  "description": "Small test server for distribution learning game",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
